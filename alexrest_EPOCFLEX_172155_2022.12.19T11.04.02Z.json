@@ -1,0 +1,68 @@
+{
+    "Markers": [
+    ],
+    "connectionType": "dongle",
+    "demographics": {
+        "birthday": "1987-01-01",
+        "countryOfInfluence": {
+            "iso": "GB",
+            "printable": "United Kingdom of Great Britain and Northern Ireland"
+        },
+        "countryOfResidence": {
+            "iso": "GB",
+            "printable": "United Kingdom of Great Britain and Northern Ireland"
+        },
+        "education": "Doctoral degree",
+        "gender": "M",
+        "handedness": "Left",
+        "languageAbility": "Native Language Only",
+        "meditation": {
+            "answer": false,
+            "duration_frequency": "Day",
+            "length_unit": "Month"
+        },
+        "musicalAbility": "Multi-instrumentalist",
+        "profession": "Computer and mathematical"
+    },
+    "exportApp": "com.emotiv.emotivpro",
+    "exportTime": "2022-12-19T11:33:21.160+00:00",
+    "headsetType": "EPOCFLEX",
+    "mappings": {
+        "CMS": "TP9",
+        "DRL": "TP10",
+        "LA": "C3",
+        "LB": "T7",
+        "LC": "FC1",
+        "LD": "FC5",
+        "LE": "FT9",
+        "LF": "F3",
+        "LG": "F7",
+        "LH": "Fp1",
+        "LJ": "Pz",
+        "LK": "Cz",
+        "LL": "O1",
+        "LM": "PO9",
+        "LN": "P3",
+        "LO": "P7",
+        "LP": "CP1",
+        "LQ": "CP5",
+        "RA": "C4",
+        "RB": "T8",
+        "RC": "FC2",
+        "RD": "FC6",
+        "RE": "FT10",
+        "RF": "F4",
+        "RG": "F8",
+        "RH": "Fp2",
+        "RJ": "Oz",
+        "RK": "Fz",
+        "RL": "O2",
+        "RM": "PO10",
+        "RN": "P4",
+        "RO": "P8",
+        "RP": "CP2",
+        "RQ": "CP6"
+    },
+    "recordId": "b85fbb2d-1fcd-4006-ae1e-2f04ee203a8e",
+    "user": "adshaw"
+}

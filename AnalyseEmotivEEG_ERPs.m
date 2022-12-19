@@ -1,0 +1,190 @@
+
+% Read in the EEG and Marker data
+
+eeg = ReadEmotivEEGCSV('Testing_EPOCFLEX_173354_2022.12.19T10.54.41Z.md.csv');
+
+markers = ReadEmotivMarkerCSV('Testing_EPOCFLEX_173354_2022.12.19T10.54.41Z_intervalMarker.csv');
+
+% Extract sampletimes reset to 0
+t = table2array(eeg(:,1)) - min(table2array(eeg(:,1)));
+
+% Extract EEG sensors - col 5 - 36
+sens = table2array(eeg(:,5:36));
+
+% filter
+fs = mean(1./diff(t));
+
+sens = atcm.fun.bandpassfilter(sens,fs,[1 30]);
+
+% Marker times
+tm = markers.latency;
+td = markers.duration;
+
+% Marker name of interest = video_element_cd5v
+name = 'video_element_cd5v';
+
+trials = find( strcmp(cellstr(markers.type),name) );
+
+window = [1 12];
+
+for i = 1:length(trials)
+    
+    T = tm(trials(i));
+    
+    ons = findthenearest(T - window(1), t);
+    ofs = findthenearest(T + window(2), t);
+    
+    data(:,:,i) = sens(ons:ofs,:);
+end
+
+pst = linspace(-1,12,size(data,1));
+
+base = 1:findthenearest(0,pst);
+
+for i = 1:size(data,3)
+    tmp = squeeze(data(:,:,i));
+    
+    tmp = tmp - mean(tmp(base,:));
+    
+    data(:,:,i) = tmp;
+    
+end
+
+for i = 1:size(data,3)
+    trial{i} = squeeze(data(:,:,i))';
+    time{i} = pst;
+end
+
+    
+% Make as fieldtrip structure
+ftdata.label   = strrep(eeg.Properties.VariableNames(5:36)','EEG','');     % cell-array containing strings, Nchan*1
+ftdata.fsample = fs;   % sampling frequency in Hz, single number
+ftdata.trial   = trial;   % cell-array containing a data matrix for each
+                % trial (1*Ntrial), each data matrix is a Nchan*Nsamples matrix
+ftdata.time    = time;   % cell-array containing a time axis for each
+                % trial (1*Ntrial), each time axis is a 1*Nsamples vector
+% data.trialinfo  % this field is optional, but can be used to store
+%                 % trial-specific information, such as condition numbers,
+%                 % reaction times, correct responses etc. The dimensionality
+%                 % is Ntrial*M, where M is an arbitrary number of columns.
+% data.sampleinfo % optional array (Ntrial*2) containing the start and end
+%                 % sample of each trial
+
+ftdata = ft_preprocessing([],ftdata)
+
+cfg = [];
+cfg.removemean = 'yes';
+cfg.latency = [-1 1];
+timelock = ft_timelockanalysis(cfg,ftdata);
+
+% get the electrode positions from the M1 74 Easycap layout
+load('/Users/alexandershaw/fieldtrip/template/layout/easycapM1.mat')
+
+% match sensor names
+for i = 1:32; this(i)=find(strcmp(lay.label,ftdata.label{i})) ; end
+
+pos = lay.pos(this,:);
+elec.pos = pos;
+elec.label = lay.label(this);
+elec.width = lay.width(this,:);
+elec.height = lay.height(this);
+elec.outline = lay.outline;
+elec.mask = lay.mask;
+
+cfg = [];
+cfg.layout = elec;
+emolay = ft_prepare_layout(cfg);
+
+% ft_plot_layout(emolay)
+
+cfg=[];
+cfg.baseline = [-1 0];
+cfg.layout=emolay;
+
+%ft_topoplotER(cfg,timelock)
+
+% source analysis
+%--------------------------------------------------------------------
+
+mont = '/Users/alexandershaw/fieldtrip/template/electrode/easycap-M1.txt';
+elec = ft_read_sens(mont)
+
+for i = 1:32; this(i)=find(strcmp(elec.label,ftdata.label{i})) ; end
+
+
+elec.chanpos  = elec.chanpos(this,:);
+elec.chantype = elec.chantype(this,:);
+elec.chanunit = elec.chanunit(this,:);
+elec.elecpos  = elec.elecpos(this,:);
+elec.label    = elec.label(this);
+
+% load also a standard forward model and structural mri
+load standard_bem.mat
+load standard_mri.mat
+
+% leadfields
+cfg = [];
+cfg.headmodel = vol;
+cfg.elec = elec;;
+cfg.grid.resolution = 6;   % use a 3-D grid with a 8mm resolution
+cfg.grid.unit       = 'mm';
+cfg.channel = elec.label; %Only generate leadfields for good channels else will bug out later
+grid = ft_prepare_leadfield(cfg);
+
+% filting and covariance
+cfg=[];
+cfg.bpfilter = 'yes';
+cfg.bpfreq = [1 30];
+cfg.demean = 'yes';
+cfg.bpinstabilityfix = 'reduce';
+[data_filt] = ft_preprocessing(cfg, ftdata);
+
+%Calculate the channel covariance matric
+cfg = [];
+cfg.covariance = 'yes';
+cfg.covariancewindow = 'all';
+timelock = ft_timelockanalysis(cfg, data_filt);
+
+%Global filter
+cfg = [];
+cfg.headmodel = vol;
+cfg.elec = elec;
+cfg.grid = grid;
+cfg.method = 'lcmv';
+cfg.lcmv.projectnoise='no'; %needed for neural activity index
+cfg.lcmv.fixedori = 'yes';  %Project onto largest variance orientation
+cfg.lcmv.keepfilter = 'yes'; %Keep the beamformer weights
+cfg.lcmv.lambda = '5%'; %Regularise a little
+source = ft_sourceanalysis(cfg, timelock);
+
+%Grab the spatial filters for voxels inside the head
+%filters = cell2mat(source.avg.filter(source.inside == 1));
+
+filters = cell2mat(source.avg.filter);
+brain = find(source.inside == 1);
+
+% mesh structure of sourcemodel
+m.vertices = grid.pos;
+pos = m.vertices;
+figure;scatter3(pos(brain,1),pos(brain,2),pos(brain,3));
+
+% new timelocks:
+
+cfg = [];
+cfg.removemean = 'yes';
+cfg.latency = [-1 1];
+timelock = ft_timelockanalysis(cfg,ftdata);
+
+% contrast baseline
+E = filters*(mean(timelock.avg(:,129:end),2) - mean(timelock.avg(:,1:128),2));
+source.avg.pow = zeros(18600,1);
+
+source.avg.pow(source.inside) = E;
+
+
+
+
+
+
+
+
